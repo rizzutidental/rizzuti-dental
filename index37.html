@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rizzuti Dental Office</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#F5F3F0;font-family:'Jost',sans-serif;}
+    .fd{font-family:'Cormorant Garamond',serif;}
+    .btn{cursor:pointer;border:none;font-family:'Jost',sans-serif;font-weight:500;font-size:13px;letter-spacing:.04em;transition:all .18s;border-radius:3px;}
+    .btn:active{transform:scale(.97);}
+    .btn-gold{background:#8B7355;color:#fff;padding:10px 22px;}
+    .btn-gold:hover{background:#7a6448;}
+    .btn-ghost{background:transparent;color:#6B6560;border:1px solid #E8E4DF;padding:8px 16px;font-size:12px;}
+    .btn-ghost:hover{background:#E8E4DF;}
+    .btn-danger{background:transparent;color:#8B2020;border:1px solid #e8c0c0;padding:6px 12px;font-size:12px;}
+    .btn-danger:hover{background:#fdf5f5;}
+    .input{width:100%;padding:10px 14px;border:1px solid #E8E4DF;border-radius:3px;font-family:'Jost',sans-serif;font-size:14px;background:#fff;color:#1A1714;outline:none;transition:border .15s;}
+    .input:focus{border-color:#8B7355;}
+    .label{display:block;font-size:11px;font-weight:600;color:#6B6560;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+    .tab{padding:11px 20px;cursor:pointer;font-family:'Jost',sans-serif;font-size:13px;font-weight:500;border:none;background:none;color:#6B6560;border-bottom:2px solid transparent;letter-spacing:.04em;transition:all .15s;}
+    .tab.active{color:#C4A882;border-bottom-color:#C4A882;}
+    .prow{display:flex;align-items:center;padding:16px 24px;border-bottom:1px solid #E8E4DF;cursor:pointer;transition:background .12s;}
+    .prow:last-child{border-bottom:none;}
+    .prow:hover{background:#faf8f5;}
+    .tag{display:inline-block;padding:3px 10px;border-radius:2px;font-size:11px;font-weight:600;letter-spacing:.04em;}
+    @keyframes su{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+    .fade{animation:su .22s ease;}
+    @keyframes ti{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+    .spin{display:inline-block;animation:spin 1s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef} = React;
+const WEBHOOK = "https://script.google.com/macros/s/AKfycbxphp_FDSLa28T9XhTTRDBN_n5pYkCRnFPI-tOwoSi_iBQL86Nanco7ikTahVEV8xlZ/exec";
+const MASTER_PWD = "ClienteLindo@1860";
+const DEFAULT_PWD = "Rizzuti2026";
+const DEFAULT_TREATMENTS = ["Implantes","Coronas","Carillas","Blanqueamientos","Placas bruxismo","Limpiezas","Tratamiento periodontal láser","Tratamiento de conducto"];
+const PAYMENT_METHODS = ["Efectivo","Transferencia","Tarjeta débito","Tarjeta crédito","Obra social"];
+const ESTADOS = ["En curso","Completado","Pendiente","Suspendido"];
+const C = {bg:"#F5F3F0",paper:"#FFFFFF",ink:"#1A1714",inkLight:"#6B6560",gold:"#8B7355",goldLight:"#C4A882",line:"#E8E4DF",danger:"#8B2020",ok:"#2A5C3F"};
+function gid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function today(){ return new Date().toISOString().split("T")[0]; }
+function fmtDate(v){ if(!v) return ""; return v.toString().split("T")[0].split("-").reverse().join("/"); }
+function isBlocked(createdAt){
+  if(!createdAt) return false;
+  const created = new Date(createdAt);
+  const now = new Date();
+  return (now - created) > 24*60*60*1000;
+}
+const eP=()=>({id:gid(),nombre:"",apellido:"",dni:"",fechaNacimiento:"",telefono:"",email:"",obraSocial:"",alergias:"",observaciones:"",tratamientos:[],pagos:[]});
+const eT=()=>({id:gid(),fecha:today(),tipo:"",diente:"",descripcion:"",estado:"En curso",proximoControl:"Sin seguimiento",valorTotal:"",createdAt:new Date().toISOString()});
+const ePg=()=>({id:gid(),fecha:today(),monto:"",metodoPago:"Efectivo",nota:""});
+function jsonpCall(url,timeout=12000){
+  return new Promise((resolve)=>{
+    const cb="cb_"+gid();
+    const fullUrl=url+(url.includes("?")?"&":"?")+"callback="+cb;
+    window[cb]=function(d){ resolve(d); delete window[cb]; try{document.head.removeChild(sc);}catch{} };
+    const sc=document.createElement("script");
+    sc.src=fullUrl; sc.onerror=()=>{ resolve({error:"network"}); delete window[cb]; };
+    document.head.appendChild(sc);
+    setTimeout(()=>{ if(window[cb]){ resolve({error:"timeout"}); delete window[cb]; }},timeout);
+  });
+}
+async function readFromSheets(){ return jsonpCall(WEBHOOK+"?action=read"); }
+async function syncToSheets(patients){ return jsonpCall(WEBHOOK+"?action=sync&data="+encodeURIComponent(JSON.stringify({patients})),15000); }
+async function saveTreatmentsToSheets(treatments){ return jsonpCall(WEBHOOK+"?action=saveTreatments&data="+encodeURIComponent(JSON.stringify({treatments}))); }
+function downloadPDF(patient){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const margin = 20;
+  let y = 20;
+
+  // Header
+  doc.setFillColor(26, 23, 20);
+  doc.rect(0, 0, 210, 32, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(18); doc.setFont("helvetica","bold");
+  doc.text("RIZZUTI DENTAL OFFICE", margin, 15);
+  doc.setFontSize(9); doc.setFont("helvetica","normal");
+  doc.setTextColor(196,168,130);
+  doc.text("Historial clínico del paciente", margin, 24);
+  doc.text("Generado: "+new Date().toLocaleDateString("es-AR"), 210-margin, 24, {align:"right"});
+
+  y = 45;
+  // Datos del paciente
+  doc.setTextColor(27,58,107);
+  doc.setFontSize(13); doc.setFont("helvetica","bold");
+  doc.text(patient.apellido.toUpperCase()+", "+patient.nombre.toUpperCase(), margin, y);
+  y += 8;
+  doc.setDrawColor(45,107,228); doc.setLineWidth(0.5);
+  doc.line(margin, y, 210-margin, y);
+  y += 8;
+
+  doc.setTextColor(80,80,80); doc.setFontSize(9); doc.setFont("helvetica","normal");
+  const datos = [
+    ["DNI", patient.dni||"-"],
+    ["Fecha de nac.", fmtDate(patient.fechaNacimiento)||"-"],
+    ["Teléfono", patient.telefono||"-"],
+    ["Email", patient.email||"-"],
+    ["Obra social", patient.obraSocial||"-"],
+  ];
+  datos.forEach(([label,val])=>{
+    doc.setFont("helvetica","bold"); doc.setTextColor(100,100,100);
+    doc.text(label+":", margin, y);
+    doc.setFont("helvetica","normal"); doc.setTextColor(40,40,40);
+    doc.text(val, margin+40, y);
+    y+=6;
+  });
+  if(patient.alergias){
+    y+=2;
+    doc.setFillColor(255,249,240); doc.setDrawColor(240,200,100);
+    doc.roundedRect(margin, y-4, 170, 12, 2, 2, "FD");
+    doc.setTextColor(180,100,0); doc.setFont("helvetica","bold");
+    doc.text("⚠ Alergias: "+patient.alergias, margin+3, y+3);
+    y+=14;
+  }
+  y+=6;
+
+  // Tratamientos
+  doc.setFillColor(26,23,20);
+  doc.rect(margin, y, 170, 8, "F");
+  doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.text("HISTORIAL DE TRATAMIENTOS", margin+3, y+5.5);
+  y+=12;
+
+  if(patient.tratamientos&&patient.tratamientos.length>0){
+    patient.tratamientos.forEach((t,i)=>{
+      if(y>260){ doc.addPage(); y=20; }
+      doc.setFillColor(i%2===0?250:245,i%2===0?248:243,i%2===0?246:240);
+      doc.rect(margin, y-3, 170, 14, "F");
+      doc.setTextColor(27,58,107); doc.setFont("helvetica","bold"); doc.setFontSize(10);
+      doc.text(t.tipo||"-", margin+3, y+4);
+      doc.setTextColor(100,100,100); doc.setFont("helvetica","normal"); doc.setFontSize(8);
+      doc.text(fmtDate(t.fecha)||"-", margin+3, y+10);
+      if(t.estado){ doc.setTextColor(60,60,60); doc.text("Estado: "+t.estado, margin+50, y+10); }
+      if(t.diente){ doc.text("Zona: "+t.diente, margin+100, y+10); }
+      if(t.descripcion){
+        y+=14;
+        if(y>260){ doc.addPage(); y=20; }
+        doc.setTextColor(80,80,80); doc.setFontSize(8);
+        const lines = doc.splitTextToSize("Notas: "+t.descripcion, 160);
+        doc.text(lines, margin+3, y);
+        y+=lines.length*4;
+      } else { y+=14; }
+    });
+  } else {
+    doc.setTextColor(150,150,150); doc.setFontSize(9);
+    doc.text("Sin tratamientos registrados", margin+3, y+4);
+    y+=12;
+  }
+  y+=6;
+
+  // Pagos
+  if(y>240){ doc.addPage(); y=20; }
+  doc.setFillColor(26,23,20);
+  doc.rect(margin, y, 170, 8, "F");
+  doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.text("HISTORIAL DE PAGOS", margin+3, y+5.5);
+  y+=12;
+
+  if(patient.pagos&&patient.pagos.length>0){
+    let total=0;
+    patient.pagos.forEach((p,i)=>{
+      if(y>260){ doc.addPage(); y=20; }
+      doc.setFillColor(i%2===0?250:245,i%2===0?253:248,i%2===0?250:245);
+      doc.rect(margin, y-3, 170, 10, "F");
+      doc.setTextColor(42,92,63); doc.setFont("helvetica","bold"); doc.setFontSize(10);
+      doc.text("$"+parseFloat(p.monto||0).toLocaleString("es-AR"), margin+3, y+4);
+      doc.setTextColor(100,100,100); doc.setFont("helvetica","normal"); doc.setFontSize(8);
+      doc.text(fmtDate(p.fecha)||"-", margin+40, y+4);
+      doc.text(p.metodoPago||"-", margin+80, y+4);
+      if(p.nota) doc.text(p.nota, margin+120, y+4);
+      total+=parseFloat(p.monto||0);
+      y+=10;
+    });
+    y+=4;
+    doc.setDrawColor(42,92,63); doc.line(margin, y, 210-margin, y); y+=6;
+    doc.setTextColor(42,92,63); doc.setFont("helvetica","bold"); doc.setFontSize(11);
+    doc.text("TOTAL COBRADO: $"+total.toLocaleString("es-AR"), 210-margin, y, {align:"right"});
+  } else {
+    doc.setTextColor(150,150,150); doc.setFontSize(9);
+    doc.text("Sin pagos registrados", margin+3, y+4);
+  }
+
+  // Footer
+  doc.setFontSize(7); doc.setTextColor(180,180,180); doc.setFont("helvetica","normal");
+  const pages = doc.getNumberOfPages();
+  for(let i=1;i<=pages;i++){
+    doc.setPage(i);
+    doc.text("Rizzuti Dental Office  |  Documento generado automáticamente  |  Página "+i+" de "+pages, 105, 290, {align:"center"});
+  }
+
+  doc.save("historial-"+patient.apellido+"-"+patient.nombre+".pdf");
+}
+
+function App(){
+  const [loggedIn,setLoggedIn]=useState(()=>sessionStorage.getItem("rizzuti_auth")==="1");
+  const [loginInput,setLoginInput]=useState("");
+  const [loginError,setLoginError]=useState(false);
+  const [showPwd,setShowPwd]=useState(false);
+  const [userPwd,setUserPwd]=useState(()=>localStorage.getItem("rizzuti_pwd")||DEFAULT_PWD);
+  const [showChangePwd,setShowChangePwd]=useState(false);
+  const [newPwd1,setNewPwd1]=useState("");
+  const [newPwd2,setNewPwd2]=useState("");
+  const [patients,setPatients]=useState([]);
+  const [treatments,setTreatments]=useState(DEFAULT_TREATMENTS);
+  const [loading,setLoading]=useState(true);
+  const [syncing,setSyncing]=useState(false);
+  const [view,setView]=useState("list");
+  const [selected,setSelected]=useState(null);
+  const [form,setForm]=useState(null);
+  const [tab,setTab]=useState("info");
+  const [search,setSearch]=useState("");
+  const [tratForm,setTratForm]=useState(null);
+  const [pagoForm,setPagoForm]=useState(null);
+  const [toast,setToast]=useState(null);
+  const [confirmDel,setConfirmDel]=useState(null);
+  const [showTreatMgr,setShowTreatMgr]=useState(false);
+  const [newTreat,setNewTreat]=useState("");
+  function handleLogin(){
+    if(loginInput===MASTER_PWD||loginInput===userPwd){
+      sessionStorage.setItem("rizzuti_auth","1");
+      setLoggedIn(true); setLoginError(false);
+    } else { setLoginError(true); }
+  }
+
+  function handleChangePwd(){
+    if(!newPwd1.trim()){ return; }
+    if(newPwd1!==newPwd2){ notify("Las contraseñas no coinciden","err"); return; }
+    if(newPwd1===MASTER_PWD){ notify("No podés usar esa contraseña","err"); return; }
+    localStorage.setItem("rizzuti_pwd",newPwd1);
+    setUserPwd(newPwd1); setShowChangePwd(false); setNewPwd1(""); setNewPwd2("");
+    notify("Contraseña actualizada");
+  }
+
+  function handleLogout(){
+    sessionStorage.removeItem("rizzuti_auth");
+    setLoggedIn(false); setLoginInput("");
+  }
+
+  useEffect(()=>{
+    loadData();
+    const interval=setInterval(()=>loadData(true),30000);
+    return ()=>clearInterval(interval);
+  },[]);
+  async function loadData(silent=false){
+    if(!silent) setLoading(true);
+    const r=await readFromSheets();
+    if(r&&r.ok){ setPatients(r.patients||[]); if(r.treatments&&r.treatments.length>0) setTreatments(r.treatments); }
+    else { try{ setPatients(JSON.parse(localStorage.getItem("rizzuti_p")||"[]")); }catch{} }
+    if(!silent) setLoading(false);
+  }
+  const notify=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
+  async function save(updated){
+    setPatients(updated); localStorage.setItem("rizzuti_p",JSON.stringify(updated));
+    setSyncing(true); const r=await syncToSheets(updated); setSyncing(false);
+    if(r&&r.ok) notify("✓ Guardado en la nube"); else notify("Guardado localmente","warn");
+  }
+  const filtered=patients.filter(p=>`${p.nombre} ${p.apellido} ${p.dni}`.toLowerCase().includes(search.toLowerCase()));
+  const openNew=()=>{ setForm(eP()); setView("form"); };
+  const openEdit=(p)=>{ setForm({...p}); setView("form"); };
+  const savePatient=()=>{
+    if(!form.nombre.trim()||!form.apellido.trim()){ notify("Nombre y apellido son obligatorios","err"); return; }
+    const exists=patients.find(p=>p.id===form.id);
+    save(exists?patients.map(p=>p.id===form.id?form:p):[...patients,form]); setView("list");
+  };
+  const deletePat=(id)=>{ save(patients.filter(p=>p.id!==id)); setView("list"); setConfirmDel(null); };
+  const openDetail=(p)=>{ setSelected(p); setTab("info"); setTratForm(null); setPagoForm(null); setView("detail"); };
+  const saveTrat=()=>{
+    if(!tratForm.tipo){ notify("Seleccioná un tratamiento","err"); return; }
+    const upd={...selected,tratamientos:[...selected.tratamientos,tratForm]};
+    save(patients.map(p=>p.id===upd.id?upd:p)); setSelected(upd); setTratForm(null); notify("Tratamiento agregado");
+  };
+  const delTrat=(tid)=>{ const upd={...selected,tratamientos:selected.tratamientos.filter(t=>t.id!==tid)}; save(patients.map(p=>p.id===upd.id?upd:p)); setSelected(upd); };
+  const savePago=()=>{
+    if(!pagoForm.monto){ notify("Ingresá un monto","err"); return; }
+    const upd={...selected,pagos:[...selected.pagos,pagoForm]};
+    save(patients.map(p=>p.id===upd.id?upd:p)); setSelected(upd); setPagoForm(null); notify("Pago registrado");
+  };
+  const delPago=(pid)=>{ const upd={...selected,pagos:selected.pagos.filter(p=>p.id!==pid)}; save(patients.map(p=>p.id===upd.id?upd:p)); setSelected(upd); };
+  const totalPagado=selected?selected.pagos.reduce((s,p)=>s+(parseFloat(p.monto)||0),0):0;
+  async function addTreatment(){
+    if(!newTreat.trim()) return;
+    const updated=[...treatments,newTreat.trim()]; setTreatments(updated); setNewTreat("");
+    await saveTreatmentsToSheets(updated); notify("Tratamiento agregado");
+  }
+  async function addTreatmentDirect(val){
+    if(!val.trim()) return;
+    const updated=[...treatments,val.trim()]; setTreatments(updated);
+    await saveTreatmentsToSheets(updated); notify("Tratamiento agregado");
+  }
+  async function removeTreatment(t){
+    const updated=treatments.filter(x=>x!==t); setTreatments(updated);
+    await saveTreatmentsToSheets(updated); notify("Tratamiento eliminado");
+  }
+  const Header=({back})=>(
+    <div style={{background:C.ink,padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",minHeight:64}}>
+      <div style={{display:"flex",alignItems:"center",gap:16}}>
+        {back&&<button className="btn" style={{background:"transparent",color:"#aaa",padding:"6px 0",fontSize:13}} onClick={back}>← Volver</button>}
+        <div><div className="fd" style={{fontSize:20,color:"#fff",fontWeight:600,letterSpacing:1}}>RIZZUTI</div><div style={{fontSize:9,color:C.goldLight,letterSpacing:"0.25em",marginTop:-2}}>DENTAL OFFICE</div></div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        {syncing&&<span style={{fontSize:11,color:"#888"}}>⟳ Sincronizando...</span>}
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+        {view==="list"&&<span style={{fontSize:12,color:"#888"}}>{patients.length} paciente{patients.length!==1?"s":""}</span>}
+        {view==="list"&&<button className="btn" style={{background:"transparent",color:"#888",padding:"4px 8px",fontSize:11,border:"1px solid rgba(255,255,255,.15)"}} onClick={()=>setShowChangePwd(true)}>🔑</button>}
+        {view==="list"&&<button className="btn" style={{background:"transparent",color:"#888",padding:"4px 8px",fontSize:11,border:"1px solid rgba(255,255,255,.15)"}} onClick={handleLogout}>Salir</button>}
+      </div>
+      </div>
+    </div>
+  );
+  const Toast=()=>toast?(<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:toast.type==="err"?C.danger:toast.type==="warn"?"#7a6820":C.ink,color:"#fff",padding:"12px 24px",borderRadius:4,fontSize:13,boxShadow:"0 8px 32px rgba(0,0,0,.2)",whiteSpace:"nowrap",animation:"ti .2s ease"}}>{toast.msg}</div>):null;
+  const ConfirmModal=()=>confirmDel?(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{background:"#fff",borderRadius:6,padding:32,maxWidth:340,width:"100%"}}><div className="fd" style={{fontSize:20,color:C.ink,marginBottom:10}}>¿Eliminar paciente?</div><div style={{fontSize:14,color:C.inkLight,marginBottom:24}}>Esta acción no se puede deshacer.</div><div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><button className="btn btn-ghost" onClick={()=>setConfirmDel(null)}>Cancelar</button><button className="btn btn-danger" style={{padding:"9px 18px"}} onClick={()=>deletePat(confirmDel)}>Eliminar</button></div></div></div>):null;
+  const treatInputRef = useRef(null);
+  const TreatmentManager=()=>{
+    return (<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:6,padding:28,maxWidth:400,width:"100%",maxHeight:"80vh",overflow:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div className="fd" style={{fontSize:20,color:C.ink}}>Tipos de tratamiento</div>
+          <button className="btn btn-ghost" onClick={()=>setShowTreatMgr(false)}>✕</button>
+        </div>
+        <div style={{marginBottom:16}}>
+          {treatments.map(t=>(<div key={t} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.line}`}}><span style={{fontSize:14,color:C.ink}}>{t}</span><button className="btn btn-danger" style={{padding:"4px 10px",fontSize:11}} onClick={()=>removeTreatment(t)}>✕</button></div>))}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <input
+            ref={treatInputRef}
+            className="input"
+            placeholder="Nuevo tratamiento..."
+            defaultValue=""
+            onKeyDown={e=>{
+              if(e.key==="Enter"){
+                const val=e.target.value.trim();
+                if(val){ addTreatmentDirect(val); e.target.value=""; }
+              }
+            }}
+          />
+          <button className="btn btn-gold" style={{whiteSpace:"nowrap"}} onClick={()=>{
+            const val=treatInputRef.current?.value?.trim();
+            if(val){ addTreatmentDirect(val); treatInputRef.current.value=""; }
+          }}>+ Agregar</button>
+        </div>
+      </div>
+    </div>);
+  };
+  // Pantalla de login
+  if(!loggedIn) return (
+    <div style={{minHeight:"100vh",background:"#1A1714",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#F5F3F0",borderRadius:8,padding:40,maxWidth:360,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div className="fd" style={{fontSize:28,color:"#1A1714",fontWeight:700,letterSpacing:2}}>RIZZUTI</div>
+          <div style={{fontSize:10,color:"#C4A882",letterSpacing:"0.25em",marginTop:-2}}>DENTAL OFFICE</div>
+        </div>
+        <div style={{marginBottom:16}}>
+          <label className="label">Contraseña</label>
+          <div style={{position:"relative"}}>
+            <input className="input" type={showPwd?"text":"password"} placeholder="Ingresá tu contraseña"
+              value={loginInput} onChange={e=>{setLoginInput(e.target.value);setLoginError(false);}}
+              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+              style={{borderColor:loginError?"#8B2020":"",paddingRight:44}}/>
+            <button onClick={()=>setShowPwd(!showPwd)}
+              style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#8B7355",padding:4}}>
+              {showPwd?
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B7355" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              :<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B7355" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+            </button>
+          </div>
+          {loginError&&<div style={{fontSize:12,color:"#8B2020",marginTop:6}}>Contraseña incorrecta</div>}
+        </div>
+        <button className="btn btn-gold" style={{width:"100%",padding:14,fontSize:15}} onClick={handleLogin}>
+          Ingresar
+        </button>
+        <div style={{textAlign:"center",marginTop:16}}>
+          <button className="btn" style={{background:"transparent",color:C.gold,fontSize:12,textDecoration:"underline",padding:0}}
+            onClick={async()=>{
+              const cb="fgcb_"+Math.random().toString(36).slice(2);
+              const url=WEBHOOK+"?action=forgotPassword&callback="+cb;
+              window[cb]=function(d){ delete window[cb]; };
+              const sc=document.createElement("script");
+              sc.src=url; document.head.appendChild(sc);
+              alert("Te enviamos la contraseña al mail del consultorio.");
+            }}>
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Modal cambio de contraseña
+  const ChangePwdModal=()=>showChangePwd?(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:6,padding:28,maxWidth:360,width:"100%"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div className="fd" style={{fontSize:20,color:C.ink}}>Cambiar contraseña</div>
+          <button className="btn btn-ghost" onClick={()=>{setShowChangePwd(false);setNewPwd1("");setNewPwd2("");}}>✕</button>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label className="label">Nueva contraseña</label>
+          <input className="input" type="password" value={newPwd1} onChange={e=>setNewPwd1(e.target.value)}/>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="label">Repetir contraseña</label>
+          <input className="input" type="password" value={newPwd2} onChange={e=>setNewPwd2(e.target.value)}/>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button className="btn btn-ghost" onClick={()=>{setShowChangePwd(false);setNewPwd1("");setNewPwd2("");}}>Cancelar</button>
+          <button className="btn btn-gold" onClick={handleChangePwd}>Guardar</button>
+        </div>
+      </div>
+    </div>
+  ):null;
+
+  if(loading) return (<div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column"}}><Header/><div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}><div className="spin" style={{fontSize:32}}>⟳</div><div className="fd" style={{fontSize:18,color:C.inkLight}}>Cargando datos...</div></div></div>);
+  if(view==="list") return (
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      <Toast/><ConfirmModal/><ChangePwdModal/>{showTreatMgr&&<TreatmentManager/>}<Header/>
+      <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+          <input className="input" style={{flex:1,minWidth:200}} placeholder="Buscar por nombre o DNI..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <button className="btn btn-gold" onClick={openNew}>+ Nuevo paciente</button>
+          <button className="btn btn-ghost" onClick={()=>setShowTreatMgr(true)}>⚙ Tratamientos</button>
+          <button className="btn btn-ghost" onClick={()=>loadData()}>↺ Actualizar</button>
+        </div>
+        <div style={{background:C.paper,borderRadius:4,overflow:"hidden",border:`1px solid ${C.line}`}}>
+          {filtered.length===0?(<div style={{padding:"60px 20px",textAlign:"center"}}><div className="fd" style={{fontSize:32,color:C.goldLight,marginBottom:8}}>✦</div><div className="fd" style={{fontSize:18,color:C.inkLight}}>{search?"Sin resultados":"No hay pacientes registrados"}</div>{!search&&<div style={{fontSize:13,color:"#bbb",marginTop:6}}>Comenzá agregando el primer paciente</div>}</div>)
+          :filtered.map(p=>(<div key={p.id} className="prow" onClick={()=>openDetail(p)}><div style={{width:38,height:38,borderRadius:"50%",background:C.ink,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,flexShrink:0}}>{p.apellido?.[0]?.toUpperCase()}</div><div style={{marginLeft:14,flex:1}}><div className="fd" style={{fontSize:17,color:C.ink,fontWeight:600}}>{p.apellido}, {p.nombre}</div><div style={{fontSize:12,color:C.inkLight,marginTop:2}}>{[p.dni&&`DNI ${p.dni}`,p.telefono,p.obraSocial].filter(Boolean).join(" · ")}</div></div><div style={{display:"flex",gap:8,alignItems:"center"}}>{p.tratamientos?.length>0&&<span className="tag" style={{background:"#f5f0e8",color:C.gold}}>{p.tratamientos.length} trat.</span>}<span style={{color:C.line,fontSize:18}}>›</span></div></div>))}
+        </div>
+      </div>
+    </div>
+  );
+  if(view==="form"&&form) return (
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      <Toast/><ChangePwdModal/><Header back={()=>setView("list")}/>
+      <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px"}} className="fade">
+        <div className="fd" style={{fontSize:26,color:C.ink,marginBottom:24}}>{patients.find(p=>p.id===form.id)?"Editar paciente":"Nuevo paciente"}</div>
+        <div style={{background:C.paper,border:`1px solid ${C.line}`,borderRadius:4,padding:28}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
+            {[["Nombre *","nombre","text"],["Apellido *","apellido","text"],["DNI","dni","text"],["Teléfono","telefono","text"],["Email","email","email"],["Obra social / Prepaga","obraSocial","text"],["Fecha de nacimiento","fechaNacimiento","date"]].map(([lbl,key,type])=>(<div key={key}><label className="label">{lbl}</label><input className="input" type={type} value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}/></div>))}
+          </div>
+          
+          <div style={{height:1,background:C.line,margin:"20px 0"}}/>
+          <div style={{marginBottom:18}}><label className="label">⚠ Alergias / condiciones médicas</label><textarea className="input" rows={2} value={form.alergias} placeholder="Ej: alérgico a penicilina..." onChange={e=>setForm(p=>({...p,alergias:e.target.value}))}/></div>
+          <div><label className="label">Observaciones generales</label><textarea className="input" rows={2} value={form.observaciones} onChange={e=>setForm(p=>({...p,observaciones:e.target.value}))}/></div>
+          <div style={{marginTop:24,display:"flex",gap:10,justifyContent:"flex-end"}}><button className="btn btn-ghost" onClick={()=>setView("list")}>Cancelar</button><button className="btn btn-gold" onClick={savePatient}>Guardar</button></div>
+        </div>
+      </div>
+    </div>
+  );
+  if(view==="detail"&&selected) return (
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      <Toast/><ConfirmModal/><ChangePwdModal/><Header back={()=>setView("list")}/>
+      <div style={{background:C.ink,padding:"20px 24px 0"}}>
+        <div style={{maxWidth:720,margin:"0 auto"}}>
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:16}}>
+            <div><div className="fd" style={{fontSize:28,color:"#fff",fontWeight:600}}>{selected.apellido}, {selected.nombre}</div>{selected.obraSocial&&<div style={{fontSize:12,color:C.goldLight,letterSpacing:".05em",marginTop:2}}>{selected.obraSocial}</div>}</div>
+            <div style={{display:"flex",gap:8}}><button className="btn" style={{background:"rgba(255,255,255,.1)",color:"#ccc",padding:"7px 14px",fontSize:12}} onClick={()=>openEdit(selected)}>✏ Editar</button>
+              <button className="btn" style={{background:"rgba(45,107,228,.3)",color:"#90c0ff",padding:"7px 14px",fontSize:12}} onClick={()=>downloadPDF(selected)}>⬇ PDF</button><button className="btn" style={{background:"rgba(180,40,40,.3)",color:"#ffaaaa",padding:"7px 14px",fontSize:12}} onClick={()=>setConfirmDel(selected.id)}>🗑 Eliminar</button></div>
+          </div>
+          <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,.1)"}}>
+            {["info","tratamientos","pagos"].map(t=>(<button key={t} className={`tab ${tab===t?"active":""}`} style={{color:tab===t?C.goldLight:"rgba(255,255,255,.45)",borderBottomColor:tab===t?C.goldLight:"transparent"}} onClick={()=>{setTab(t);setTratForm(null);setPagoForm(null);}}>{t==="info"?"Datos":t==="tratamientos"?"Tratamientos":"Pagos"}</button>))}
+          </div>
+        </div>
+      </div>
+      <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px"}} className="fade">
+        {tab==="info"&&(<div style={{background:C.paper,border:`1px solid ${C.line}`,borderRadius:4,padding:26}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>{[["DNI",selected.dni],["Fecha de nac.",fmtDate(selected.fechaNacimiento)],["Teléfono",selected.telefono],["Email",selected.email]].map(([l,v])=>v?(<div key={l}><div className="label">{l}</div><div style={{fontSize:15,color:C.ink}}>{v}</div></div>):null)}</div>{selected.alergias&&(<div style={{marginTop:20,padding:"14px 16px",background:"#fff9f0",border:"1px solid #f0d8a8",borderRadius:3,borderLeft:`4px solid ${C.gold}`}}><div className="label" style={{color:C.gold}}>⚠ Alergias / condiciones</div><div style={{fontSize:14,color:"#6b4a20",marginTop:4}}>{selected.alergias}</div></div>)}{selected.observaciones&&<div style={{marginTop:16}}><div className="label">Observaciones</div><div style={{fontSize:14,color:C.inkLight}}>{selected.observaciones}</div></div>}</div>)}
+        {tab==="tratamientos"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}><button className="btn btn-gold" style={{fontSize:13,padding:"9px 18px"}} onClick={()=>setTratForm(tratForm?null:eT())}>{tratForm?"✕ Cancelar":"+ Agregar tratamiento"}</button></div>
+            {tratForm&&(<div style={{background:C.paper,border:`1px solid ${C.goldLight}`,borderRadius:4,padding:22,marginBottom:18}} className="fade"><div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}><div><label className="label">Tipo *</label><select className="input" value={tratForm.tipo} onChange={e=>setTratForm(p=>({...p,tipo:e.target.value}))}><option value="">Seleccionar...</option>{treatments.map(t=><option key={t}>{t}</option>)}</select></div><div><label className="label">Fecha</label><input className="input" type="date" value={tratForm.fecha} onChange={e=>setTratForm(p=>({...p,fecha:e.target.value}))}/></div><div><label className="label">Estado</label><select className="input" value={tratForm.estado} onChange={e=>setTratForm(p=>({...p,estado:e.target.value}))}>{ESTADOS.map(s=><option key={s}>{s}</option>)}</select></div><div><label className="label">Diente / Zona</label><input className="input" type="text" placeholder="Ej: pieza 21..." value={tratForm.diente} onChange={e=>setTratForm(p=>({...p,diente:e.target.value}))}/></div><div><label className="label">Notas clínicas</label><textarea className="input" rows={2} value={tratForm.descripcion} onChange={e=>setTratForm(p=>({...p,descripcion:e.target.value}))}/></div>
+                  <div><label className="label">Valor total del tratamiento ($)</label>
+                    <input className="input" type="number" placeholder="0" value={tratForm.valorTotal||""} onChange={e=>setTratForm(p=>({...p,valorTotal:e.target.value}))}/>
+                  </div>
+                  <div><label className="label">Próximo control</label>
+                    <select className="input" value={tratForm.proximoControl||"Sin seguimiento"} onChange={e=>setTratForm(p=>({...p,proximoControl:e.target.value}))}>
+                      {["Sin seguimiento","30 días","60 días","90 días","6 meses","1 año"].map(o=><option key={o}>{o}</option>)}
+                    </select>
+                  </div></div><div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}><button className="btn btn-gold" onClick={saveTrat}>Guardar</button></div></div>)}
+            <div style={{background:C.paper,border:`1px solid ${C.line}`,borderRadius:4,overflow:"hidden"}}>
+              {selected.tratamientos.length===0?(<div style={{padding:"40px 20px",textAlign:"center",color:C.inkLight,fontSize:14}}>No hay tratamientos registrados</div>)
+              :[...selected.tratamientos].reverse().map((t,i)=>{ const sc2={Completado:"#2A5C3F","En curso":"#2c4a8b",Pendiente:"#7a6820",Suspendido:C.danger}[t.estado]||C.inkLight; return(<div key={t.id} style={{padding:"16px 20px",borderBottom:i<selected.tratamientos.length-1?`1px solid ${C.line}`:"none",display:"flex",gap:14,alignItems:"flex-start"}}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><span className="fd" style={{fontSize:17,fontWeight:600,color:C.ink}}>{t.tipo}</span><span className="tag" style={{background:`${sc2}18`,color:sc2}}>{t.estado}</span></div><div style={{fontSize:12,color:C.inkLight,marginTop:4}}>{[fmtDate(t.fecha),t.diente].filter(Boolean).join(" · ")}</div>{t.descripcion&&<div style={{fontSize:13,color:C.inkLight,marginTop:6}}>{t.descripcion}</div>}
+                      {t.valorTotal&&parseFloat(t.valorTotal)>0&&(
+                        <div style={{fontSize:12,marginTop:4,color:C.gold,fontWeight:600}}>
+                          💲 Valor tratamiento: ${parseFloat(t.valorTotal).toLocaleString("es-AR")}
+                        </div>
+                      )}
+                      {t.proximoControl&&t.proximoControl!=="Sin seguimiento"&&(
+                        <div style={{fontSize:12,marginTop:4,color:"#2c4a8b",fontWeight:600}}>
+                          🔔 Próximo control: {t.proximoControl}
+                          {t.fecha&&<span style={{fontWeight:300,color:C.inkLight}}> — a partir del {fmtDate(t.fecha)}</span>}
+                        </div>
+                      )}</div>{!isBlocked(t.createdAt)&&<button className="btn btn-danger" onClick={()=>delTrat(t.id)}>✕</button>}{isBlocked(t.createdAt)&&<span style={{fontSize:10,color:C.inkLight,opacity:0.5}}>🔒</span>}</div>);})}
+            </div>
+          </div>
+        )}
+        {tab==="pagos"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
+              {(()=>{
+                const totalTrat=selected.tratamientos.reduce((s,t)=>s+(parseFloat(t.valorTotal)||0),0);
+                const saldo=totalTrat-totalPagado;
+                return(
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    <div style={{padding:"12px 18px",background:C.ink,borderRadius:4}}>
+                      <div style={{fontSize:9,color:C.goldLight,textTransform:"uppercase",letterSpacing:".12em"}}>Total cobrado</div>
+                      <div className="fd" style={{fontSize:22,color:"#fff",fontWeight:600}}>${totalPagado.toLocaleString("es-AR")}</div>
+                    </div>
+                    <div style={{padding:"12px 18px",background:"#2c4a8b",borderRadius:4}}>
+                      <div style={{fontSize:9,color:"#a0c0ff",textTransform:"uppercase",letterSpacing:".12em"}}>Total tratamientos</div>
+                      <div className="fd" style={{fontSize:22,color:"#fff",fontWeight:600}}>${totalTrat.toLocaleString("es-AR")}</div>
+                    </div>
+                    <div style={{padding:"12px 18px",background:saldo>0?"#8B2020":"#2A5C3F",borderRadius:4}}>
+                      <div style={{fontSize:9,color:saldo>0?"#ffaaaa":"#a0ffcc",textTransform:"uppercase",letterSpacing:".12em"}}>{saldo>0?"Saldo pendiente":"Al día"}</div>
+                      <div className="fd" style={{fontSize:22,color:"#fff",fontWeight:600}}>{saldo>0?"$"+saldo.toLocaleString("es-AR"):"✓"}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <button className="btn btn-gold" style={{fontSize:13,padding:"9px 18px"}} onClick={()=>setPagoForm(pagoForm?null:ePg())}>{pagoForm?"✕ Cancelar":"+ Registrar pago"}</button>
+            </div>
+            {pagoForm&&(<div style={{background:C.paper,border:`1px solid ${C.goldLight}`,borderRadius:4,padding:22,marginBottom:18}} className="fade"><div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}><div><label className="label">Monto *</label><input className="input" type="number" placeholder="0" value={pagoForm.monto} onChange={e=>setPagoForm(p=>({...p,monto:e.target.value}))}/></div><div><label className="label">Fecha</label><input className="input" type="date" value={pagoForm.fecha} onChange={e=>setPagoForm(p=>({...p,fecha:e.target.value}))}/></div><div><label className="label">Método</label><select className="input" value={pagoForm.metodoPago} onChange={e=>setPagoForm(p=>({...p,metodoPago:e.target.value}))}>{PAYMENT_METHODS.map(m=><option key={m}>{m}</option>)}</select></div><div><label className="label">Nota (opcional)</label><input className="input" type="text" placeholder="Ej: seña, 2da cuota..." value={pagoForm.nota} onChange={e=>setPagoForm(p=>({...p,nota:e.target.value}))}/></div></div><div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}><button className="btn btn-gold" onClick={savePago}>Registrar</button></div></div>)}
+            <div style={{background:C.paper,border:`1px solid ${C.line}`,borderRadius:4,overflow:"hidden"}}>
+              {selected.pagos.length===0?(<div style={{padding:"40px 20px",textAlign:"center",color:C.inkLight,fontSize:14}}>No hay pagos registrados</div>)
+              :[...selected.pagos].reverse().map((p,i)=>(<div key={p.id} style={{padding:"14px 20px",borderBottom:i<selected.pagos.length-1?`1px solid ${C.line}`:"none",display:"flex",alignItems:"center",gap:14}}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:10}}><span className="fd" style={{fontSize:20,fontWeight:600,color:C.ok}}>${parseFloat(p.monto).toLocaleString("es-AR")}</span><span className="tag" style={{background:"#f0ede8",color:C.inkLight}}>{p.metodoPago}</span></div><div style={{fontSize:12,color:C.inkLight,marginTop:3}}>{[fmtDate(p.fecha),p.nota].filter(Boolean).join(" · ")}</div></div><button className="btn btn-danger" onClick={()=>delPago(p.id)}>✕</button></div>))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  return null;
+}
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+</body>
+</html>
