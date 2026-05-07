@@ -187,6 +187,22 @@ function downloadPDF(patient){
     doc.setDrawColor(42,92,63); doc.line(margin, y, 210-margin, y); y+=6;
     doc.setTextColor(42,92,63); doc.setFont("helvetica","bold"); doc.setFontSize(11);
     doc.text("TOTAL COBRADO: $"+total.toLocaleString("es-AR"), 210-margin, y, {align:"right"});
+    y+=8;
+    const totalTrat=patient.tratamientos.reduce((s,t)=>s+(parseFloat(t.valorTotal)||0),0);
+    if(totalTrat>0){
+      const saldo=totalTrat-total;
+      doc.setDrawColor(200,200,200); doc.line(margin, y, 210-margin, y); y+=6;
+      doc.setTextColor(27,58,107); doc.setFont("helvetica","bold"); doc.setFontSize(11);
+      doc.text("TOTAL TRATAMIENTOS: $"+totalTrat.toLocaleString("es-AR"), 210-margin, y, {align:"right"});
+      y+=8;
+      if(saldo>0){
+        doc.setTextColor(139,32,32); doc.setFontSize(12);
+        doc.text("SALDO PENDIENTE: $"+saldo.toLocaleString("es-AR"), 210-margin, y, {align:"right"});
+      } else {
+        doc.setTextColor(42,92,63); doc.setFontSize(12);
+        doc.text("ESTADO: AL DÍA ✓", 210-margin, y, {align:"right"});
+      }
+    }
   } else {
     doc.setTextColor(150,150,150); doc.setFontSize(9);
     doc.text("Sin pagos registrados", margin+3, y+4);
