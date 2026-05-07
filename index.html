@@ -57,7 +57,7 @@ function isBlocked(createdAt){
   const now = new Date();
   return (now - created) > 24*60*60*1000;
 }
-const eP=()=>({id:gid(),nombre:"",apellido:"",dni:"",fechaNacimiento:"",telefono:"",email:"",obraSocial:"",alergias:"",observaciones:"",tratamientos:[],pagos:[]});
+const eP=()=>({id:gid(),nombre:"",apellido:"",dni:"",fechaNacimiento:"",telefono:"",email:"",obraSocial:"",alergias:"",observaciones:"",tratamientos:[],pagos:[],createdAt:new Date().toISOString()});
 const eT=()=>({id:gid(),fecha:today(),tipo:"",diente:"",descripcion:"",estado:"En curso",proximoControl:"Sin seguimiento",valorTotal:"",createdAt:new Date().toISOString()});
 const ePg=()=>({id:gid(),fecha:today(),monto:"",metodoPago:"Efectivo",nota:""});
 function jsonpCall(url,timeout=12000){
@@ -237,6 +237,7 @@ function App(){
   const [form,setForm]=useState(null);
   const [tab,setTab]=useState("info");
   const [search,setSearch]=useState("");
+  const [filtroAno,setFiltroAno]=useState("Todos");
   const [tratForm,setTratForm]=useState(null);
   const [pagoForm,setPagoForm]=useState(null);
   const [toast,setToast]=useState(null);
@@ -282,7 +283,12 @@ function App(){
     setSyncing(true); const r=await syncToSheets(updated); setSyncing(false);
     if(r&&r.ok) notify("✓ Guardado en la nube"); else notify("Guardado localmente","warn");
   }
-  const filtered=patients.filter(p=>`${p.nombre} ${p.apellido} ${p.dni}`.toLowerCase().includes(search.toLowerCase()));
+  const anos = ["Todos", ...Array.from(new Set(patients.filter(p=>p.createdAt).map(p=>new Date(p.createdAt).getFullYear().toString()))).sort((a,b)=>b-a)];
+  const filtered=patients.filter(p=>{
+    const matchSearch = `${p.nombre} ${p.apellido} ${p.dni}`.toLowerCase().includes(search.toLowerCase());
+    const matchAno = filtroAno==="Todos" || (p.createdAt && new Date(p.createdAt).getFullYear().toString()===filtroAno);
+    return matchSearch && matchAno;
+  });
   const openNew=()=>{ setForm(eP()); setView("form"); };
   const openEdit=(p)=>{ setForm({...p}); setView("form"); };
   const savePatient=()=>{
@@ -444,6 +450,9 @@ function App(){
       <div style={{maxWidth:720,margin:"0 auto",padding:"24px 16px"}}>
         <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
           <input className="input" style={{flex:1,minWidth:200}} placeholder="Buscar por nombre o DNI..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <select className="input" style={{width:"auto",minWidth:100}} value={filtroAno} onChange={e=>setFiltroAno(e.target.value)}>
+            {anos.map(a=><option key={a}>{a}</option>)}
+          </select>
           <button className="btn btn-gold" onClick={openNew}>+ Nuevo paciente</button>
           <button className="btn btn-ghost" onClick={()=>setShowTreatMgr(true)}>⚙ Tratamientos</button>
           <button className="btn btn-ghost" onClick={()=>loadData()}>↺ Actualizar</button>
