@@ -286,7 +286,7 @@ function App(){
   const anos = ["Todos", ...Array.from(new Set(patients.filter(p=>p.createdAt).map(p=>new Date(p.createdAt).getFullYear().toString()))).sort((a,b)=>b-a)];
   const filtered=patients.filter(p=>{
     const matchSearch = `${p.nombre} ${p.apellido} ${p.dni}`.toLowerCase().includes(search.toLowerCase());
-    const matchAno = filtroAno==="Todos" || (p.createdAt && new Date(p.createdAt).getFullYear().toString()===filtroAno);
+    const matchAno = filtroAno==="Todos" || !p.createdAt || new Date(p.createdAt).getFullYear().toString()===filtroAno;
     return matchSearch && matchAno;
   });
   const openNew=()=>{ setForm(eP()); setView("form"); };
