@@ -77,17 +77,33 @@ async function uploadImage(file, pacienteNombre){
   return new Promise((resolve)=>{
     const reader = new FileReader();
     reader.onload = async function(e){
-      const base64 = e.target.result;
-      const fileName = file.name;
-      const encoded = encodeURIComponent(JSON.stringify({imageData:base64, fileName:fileName, pacienteNombre:pacienteNombre}));
-      const cb = "imgcb_"+gid();
-      const url = WEBHOOK+"?action=uploadImage&callback="+cb+"&imageData="+encodeURIComponent(base64)+"&fileName="+encodeURIComponent(fileName)+"&pacienteNombre="+encodeURIComponent(pacienteNombre);
-      window[cb]=function(d){ resolve(d); delete window[cb]; try{document.head.removeChild(sc);}catch{} };
-      const sc=document.createElement("script");
-      sc.src=url;
-      sc.onerror=()=>{ resolve({error:"network"}); delete window[cb]; };
-      document.head.appendChild(sc);
-      setTimeout(()=>{ if(window[cb]){ resolve({error:"timeout"}); delete window[cb]; }},30000);
+      try {
+        const base64 = e.target.result;
+        const fileName = encodeURIComponent(file.name);
+        const paciente = encodeURIComponent(pacienteNombre);
+        // Comprimir imagen antes de subir
+        const canvas = document.createElement("canvas");
+        const img = new Image();
+        img.onload = function(){
+          const MAX = 800;
+          let w = img.width, h = img.height;
+          if(w > MAX){ h = Math.round(h*MAX/w); w = MAX; }
+          if(h > MAX){ w = Math.round(w*MAX/h); h = MAX; }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL("image/jpeg", 0.6);
+          const b64 = encodeURIComponent(compressed);
+          const cb = "imgcb_"+gid();
+          const url = WEBHOOK+"?action=uploadImage&callback="+cb+"&imageData="+b64+"&fileName="+fileName+"&pacienteNombre="+paciente;
+          window[cb]=function(d){ resolve(d); delete window[cb]; try{document.head.removeChild(sc);}catch{} };
+          const sc=document.createElement("script");
+          sc.src=url;
+          sc.onerror=()=>{ resolve({error:"network"}); delete window[cb]; };
+          document.head.appendChild(sc);
+          setTimeout(()=>{ if(window[cb]){ resolve({error:"timeout"}); delete window[cb]; }},30000);
+        };
+        img.src = base64;
+      } catch(err){ resolve({error:err.toString()}); }
     };
     reader.readAsDataURL(file);
   });
