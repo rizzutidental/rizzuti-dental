@@ -542,7 +542,7 @@ function App(){
                       {t.imagenUrl&&(
                         <div style={{marginTop:8}}>
                           <a href={t.imagenUrl} target="_blank" rel="noopener noreferrer">
-                            <img src={"https://drive.google.com/thumbnail?id="+t.imagenUrl.split("/d/")[1]?.split("/")[0]+"&sz=w120"} 
+                            <img src={t.imagenUrl} 
                               alt="imagen" style={{width:80,height:80,objectFit:"cover",borderRadius:4,border:`1px solid ${C.line}`}}/>
                           </a>
                         </div>
